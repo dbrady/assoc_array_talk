@@ -1,0 +1,193 @@
+Talk Notes
+----------------------------------------------------------------------
+
+- Lisp
+John McCarthy, 1958
+
+Alonzo Church's Lambda Calculus, 1930's.
+- Part of investigation into the foundations of mathematics
+- Kleene-Rosser Paradox proved it to be logically inconsistent in 1935
+- Church published the consistent portion, Untyped Lambda Calculus, in 1936
+
+The first programmable computer was the Z1 in 1936,
+The first Minicomputer, the PDP-1, with transistors, RAM and graphical
+output, was produced in 1960.
+
+- Everything in LISP is a symbolic expression (S-exp).
+- McCarthy originally intended it to have M-expressions (meta
+  expressions) first, then S-expressions later.
+	- BUT!
+  - M-expressions turned out to be hard
+  - S-expressions turned out to be capable of expressing M-expressions
+  - Then they discovered homoiconicity, which was basically awesome,
+    and M-expressions violate it. (There are LISP dialects, such as
+    MLISP, with M-expressions, but they lack homoiconicity.)
+
+[Slide of some S-exps, be sure to show nesting]
+
+- Linked Lists are used to form most of LISP
+	[Slide of a linked list]
+
+
+
+- Ruby examples are based on 1.8. Ruby 1.9 can suck it. (And might be
+  the same anyway.)
+- Ruby hashes use a growable table in powers of 2
+- This is a common optimization, it is O(log2).
+- Hash table lookup is O(k+mumble)
+	- k != k, for variable values of k
+  - k1 is num.to_hash which is just a 1-op + funcall plus %.
+  - k2 is string.to_hash which is linear O(n). This MAY be memoized,
+    not sure, but it's about 8-20 ops per byte, plus a funcall plus %.
+  - now we walk the linked list in that bin
+		- do the hash AND key pointer match
+			- yes
+				- This is our slot, access or update it
+			- no
+				- No slot found. access returns nil, update creates new
+  - if we created a new entry, are we over density?
+		- yes
+			- Woo, reallocate the whole table!
+
+
+
+
+* Outline
+** LISP History
+*** S-expressions
+- General S-exps
+- Recursive Lists
+- Demonstration of a List of pairs
+
+** NOTE: Pros vs. Cons
+Everything is a tradeoff! Everything is just a feature. Arrays have
+the fastest indexing operation--one clock cycle--because they can only
+be indexed by integers. Hashes can be indexed by any object(1), but can
+only be iterated over randomly(2).
+
+1: If the object has a constant hash function.
+2: Ruby 1.9 preserves insertion order, which is pretty cool.
+
+For example, all of the structures I'm going to talk about today can
+be iterated from one item to the next in O(k) time. But for arrays,
+O(k) is darn close to 1 clock cycle, while for hashes it's closer to 4
+or 5.
+
+** Linked Lists
+-- Stored anywhere in memory
+-- Each element contains pointer to next
+-- Slow iteration (next(): seek node, find offset, copy address)
+-- CANNOT BE INDEXED: HAS NO INDEX CONCEPT
+
+CRUD:
+-- Create: Fastest, guaranteed constant.
+-- Insert: Medium, guaranteed constant (allocate, copy, update ptrs)
+-- Search: EPIC SLOW. O(n), no index. Must search list blindly.
+-- Update: Medium. Update contents of node OR replace and update ptrs
+-- Inject: Fast, create then update pointers
+-- Delete: Fast, just update pointers
+
+
+** Arrays
+[Discuss Array Structure]
+-- Stored in memory sequentially
+-- Fastest indexing
+-- Fastest iteration
+-- Iteration in insertion order
+-- Index by integer offset only
+-- Requires contiguous memory (must be moved if it outgrows space)
+-- Can reduce this by having an array of pointers
+--- This slows down iteration and indexing by adding ptr indirection
+--- Arrays of ptrs used when you need to store/sort big objects
+--- Don't get cute. This is half of the trick behind Hashes
+--- And anyway, yes, Ruby's C-arrays are pointers to their objects
+--- Except when it converts them to hashes behind our backs
+
+CRUD:
+-- Create: Slowest. Must allocate all memory in advance. (Ruby gets
+around this with growable arrays)
+-- Insert: It depends. Fastest or Slowest. If memory available, just
+   copy memory; if not, then must reallocate entire array. If you
+   double the array's size every time, this averages out to O(log(n)).
+-- Search: Fastest. Indexed by integer only.
+-- Update: Fastest. Just copy over the data.
+-- Inject: Epic slow, O(n), requires moving all subsequent data
+-- Delete: Epic slow, O(n), requires moving all subsequent data
+
+-- This is THE fastest structure if your dataset does not grow and can
+be indexed by integer.
+
+** Hashes
+[Discuss Hash Structure]
+-- Hash table stored in memory sequentially
+-- Elements themselves stored anywhere in memory
+-- Only hash table itself requires contiguous memory
+-- Bins are actually linked lists
+-- SLOWEST iteration! (iterate to next bin in hash table, then seek
+its list)
+-- SLOW indexing
+-- Index by any object that has a constant hash function
+
+CRUD:
+Hash operations are all wibbly-wobbly. Sometimes they're fast, other
+times they're slow, the
+-- Create: Slow. Must allocate hash table in advance.
+-- Insert: Slowest! Must hash the object, then append to list. Then if
+   you have more than 5x items than hash bins, the hash table must be
+   reallocated and all hash bins recomputed.
+-- Search: Slowest... of the O(k) crowd. Must hash the object, then
+   linearly walk a short list. 
+-- Update: Slow. Must search and then update the linked list.
+-- Inject: Same as insert.
+-- Delete: Slow. Search then update linked list.
+
+
+** What All Of These Have In Common
+-- The index (if any) must be treated as global, atomic, and unique
+-- The index cannot contain duplicates
+-- The index cannot be versioned
+
+And so now... let us go back in time to the 1950's...
+
+** Associative Lists
+-- Linked List
+-- Each element was a pair
+-- First element of the pair was the key
+-- Second element was the value
+-- This sounds like a hash, dunnit
+-- In fact, this is WHY hashes got invented
+-- Hashes are just a hybrid/optimization of Assoc Lists and Arrays
+-- But I'm getting ahead of myself
+
+-- Linked List of Pairs
+-- Slow iteration (see linked list)
+-- BUT ADDS INDEXING!
+-- Which is EPIC slow, O(n) now instead of O(k) because you have to
+walk the list looking for the index key.
+
+-- So hashes came along as an optimization for all this
+
+And the Rubyists, like the Pythonistas and the Perl, uh, Guys, came
+from Lisp. And so...
+
+** Associative Arrays
+-- It's really just an Array of Arrays.
+-- How Ruby treats Arrays
+--- Growable
+--- Arrays of pointers
+-- But... there's assoc() and rassoc()
+-- These are C functions to search an array
+-- assoc returns the first element (the whole array!) by key
+-- rassoc returns the first element (the whole array!) by value
+
+CRUD:
+-- Create: Slow (it's an array).
+-- Insert: Slow like Array. Note that you only ever insert at head.
+-- Search: Not-quite-epic slow, O(n), but in C, faster than select()
+-- Update: Slow (It's just an Insert)
+-- Inject: Not possible
+-- Delete: Um...
+
+
+
+
